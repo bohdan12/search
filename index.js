@@ -1,20 +1,26 @@
+// index.js
 const express = require('express');
 const cors = require('cors');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Configuración CORS más permisiva para desarrollo
-const corsOptions = {
-  origin: '*', // Permite todas las origenes
-  methods: ['POST', 'GET', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true,
-  optionsSuccessStatus: 200
-};
+// Configuración CORS más permisiva
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  // Handle preflight
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  next();
+});
 
-app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
+
 
 // Middleware específico para preflight requests
 app.options('*', cors(corsOptions));
