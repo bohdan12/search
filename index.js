@@ -1,28 +1,22 @@
-// index.js
-require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(cors());
 
-// Función para remover diacríticos
 function removeDiacritics(str) {
   return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }
 
-// Función para calcular similitud
 function calculateSimilarity(text1, text2) {
   const normalized1 = removeDiacritics(text1);
   const normalized2 = removeDiacritics(text2);
   return normalized1 === normalized2;
 }
 
-// Ruta principal de procesamiento
 app.post('/process-text', (req, res) => {
   try {
     const { text, wordsToHighlight } = req.body;
@@ -66,7 +60,6 @@ app.post('/process-text', (req, res) => {
   }
 });
 
-// Ruta de salud
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
