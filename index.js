@@ -21,6 +21,14 @@ app.use((req, res, next) => {
 
 app.use(express.json({ limit: '10mb' }));
 
+const corsOptions = {
+  origin: '*', // Permite todas las origenes
+  methods: ['POST', 'GET', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+  optionsSuccessStatus: 200
+};
+app.use(cors(corsOptions));
 
 // Middleware específico para preflight requests
 app.options('*', cors(corsOptions));
