@@ -4,8 +4,20 @@ const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Configuración CORS más permisiva para desarrollo
+const corsOptions = {
+  origin: '*', // Permite todas las origenes
+  methods: ['POST', 'GET', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+  optionsSuccessStatus: 200
+};
+
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
-app.use(cors());
+
+// Middleware específico para preflight requests
+app.options('*', cors(corsOptions));
 
 function removeDiacritics(str) {
   return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -17,7 +29,7 @@ function calculateSimilarity(text1, text2) {
   return normalized1 === normalized2;
 }
 
-app.post('/process-text', (req, res) => {
+app.post('/process-text', cors(corsOptions), (req, res) => {
   try {
     const { text, wordsToHighlight } = req.body;
     
@@ -60,7 +72,7 @@ app.post('/process-text', (req, res) => {
   }
 });
 
-app.get('/health', (req, res) => {
+app.get('/health', cors(corsOptions), (req, res) => {
   res.json({ status: 'ok' });
 });
 
