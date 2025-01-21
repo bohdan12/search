@@ -37,10 +37,44 @@ function removeDiacritics(str) {
   return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }
 
+function levenshteinDistance(a, b) {
+  const matrix = [];
+  for (let i = 0; i <= b.length; i++) {
+    matrix[i] = [i];
+  }
+  for (let j = 0; j <= a.length; j++) {
+    matrix[0][j] = j;
+  }
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1
+        );
+      }
+    }
+  }
+  return matrix[b.length][a.length];
+}
+
 function calculateSimilarity(text1, text2) {
-  const normalized1 = removeDiacritics(text1);
-  const normalized2 = removeDiacritics(text2);
-  return normalized1 === normalized2;
+  const normalized1 = removeDiacritics(text1.toLowerCase());
+  const normalized2 = removeDiacritics(text2.toLowerCase());
+
+  // Primero verificar coincidencia exacta
+  if (normalized1 === normalized2) return true;
+
+  // Si no hay coincidencia exacta, usar Levenshtein
+  const distance = levenshteinDistance(normalized1, normalized2);
+  const maxLength = Math.max(normalized1.length, normalized2.length);
+  const similarity = 1 - (distance / maxLength);
+
+  // Usar el mismo umbral que en el cliente
+  return similarity >= 0.75;
 }
 
 app.post('/process-text', cors(corsOptions), (req, res) => {
