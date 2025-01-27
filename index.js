@@ -74,7 +74,7 @@ function calculateSimilarity(text1, text2) {
   const similarity = 1 - (distance / maxLength);
 
   // Usar el mismo umbral que en el cliente
-  return similarity >= 0.75;
+  return similarity >= 0.65;
 }
 
 app.post('/process-text', cors(corsOptions), (req, res) => {
