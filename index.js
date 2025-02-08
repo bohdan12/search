@@ -124,6 +124,6 @@ app.get('/health', cors(corsOptions), (req, res) => {
   res.json({ status: 'ok' });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+app.listen(3000, '0.0.0.0', () => {
+  console.log('Server running on port 3000');
 });
