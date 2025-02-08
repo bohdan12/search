@@ -1,39 +1,42 @@
-const express = require('express');
-const cors = require('cors');
+const cluster = require('cluster');
+const os = require('os');
+const app = require('./app'); // Import API logic
 
-const app = express();
+const PORT = 3000;
 
-// ✅ Correct CORS Configuration
-const corsOptions = {
-  origin: '*',  // Allows requests from any domain
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: false
-};
+if (cluster.isMaster) {
+  const numCPUs = os.cpus().length;
+  console.log(`🟢 Master process running (PID: ${process.pid})`);
+  console.log(`🔄 Forking ${numCPUs} workers...\n`);
 
-app.use(cors(corsOptions));
+  // Fork workers for each CPU core
+  for (let i = 0; i < numCPUs; i++) {
+    cluster.fork();
+  }
 
-// ✅ Explicitly Handle Preflight (OPTIONS) Requests
-app.options('*', (req, res) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.status(200).end();
-});
+  // Handle worker exit
+  cluster.on('exit', (worker, code, signal) => {
+    console.log(`⚠️ Worker ${worker.process.pid} exited (code: ${code}, signal: ${signal})`);
+    console.log(`🔄 Restarting a new worker...\n`);
+    cluster.fork();
+  });
 
-// ✅ Middleware to Log Incoming Requests (Debugging)
-app.use((req, res, next) => {
-  console.log(`📥 Request: ${req.method} ${req.url}`);
-  console.log(`📝 Headers:`, req.headers);
-  next();
-});
+  // Handle worker messages
+  cluster.on('message', (worker, message) => {
+    console.log(`📩 Message from worker ${worker.process.pid}:`, message);
+  });
 
-app.use(express.json({ limit: '10mb' }));
+} else {
+  // Each worker runs the API
+  const server = app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🟢 Worker ${process.pid} listening on port ${PORT}`);
+  });
 
-// Example Route for Testing
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok' });
-});
+  // Log errors
+  server.on('error', (err) => {
+    console.error(`❌ Server error in worker ${process.pid}:`, err);
+  });
 
-// Export App
-module.exports = app;
+  // Send message to master
+  process.send?.(`Worker ${process.pid} is running`);
+}
