@@ -23,8 +23,11 @@ if (cluster.isMaster) {
     cluster.fork();
   });
 } else {
-  // Each worker runs the app on the same port
-  app.listen(PORT, '0.0.0.0', () => {
+   const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`Worker running on port ${PORT} with PID: ${process.pid}`);
+  });
+
+  server.on('error', (err) => {
+    console.error('Server error:', err);
   });
 }
