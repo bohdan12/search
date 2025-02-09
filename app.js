@@ -1,38 +1,39 @@
-// index.js
 const express = require('express');
 const cors = require('cors');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
 
-// Configuración CORS más permisiva
-app.use((req, res, next) => {
+// ✅ 1. Correct CORS Configuration
+const corsOptions = {
+  origin: '*', // Allow all origins
+  methods: ['GET', 'POST', 'OPTIONS'], // Allowed methods
+  allowedHeaders: ['Content-Type', 'Authorization'], // Allowed headers
+  credentials: false // LocalTunnel does not require credentials
+};
+app.use(cors(corsOptions));
+
+// ✅ 2. Explicitly Handle Preflight Requests (OPTIONS)
+app.options('*', (req, res) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  
-  // Handle preflight
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.status(200).end();
+});
+
+// ✅ 3. Middleware to Log Incoming Requests (Debugging)
+app.use((req, res, next) => {
+  console.log(`📥 Request: ${req.method} ${req.url}`);
+  console.log(`📝 Headers:`, req.headers);
+  if (req.method === 'POST') {
+    console.log(`📦 Body:`, req.body);
   }
   next();
 });
 
+// ✅ 4. Middleware to Parse JSON Requests
 app.use(express.json({ limit: '10mb' }));
 
-const corsOptions = {
-  origin: '*', // Permite todas las origenes
-  methods: ['POST', 'GET', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true,
-  optionsSuccessStatus: 200
-};
-app.use(cors(corsOptions));
-
-// Middleware específico para preflight requests
-app.options('*', cors(corsOptions));
-
+// ✅ 5. Utility Functions
 function removeDiacritics(str) {
   return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }
@@ -65,26 +66,30 @@ function calculateSimilarity(text1, text2) {
   const normalized1 = removeDiacritics(text1.toLowerCase());
   const normalized2 = removeDiacritics(text2.toLowerCase());
 
-  // Primero verificar coincidencia exacta
+  // First, check for an exact match
   if (normalized1 === normalized2) return true;
 
-  // Si no hay coincidencia exacta, usar Levenshtein
+  // If no exact match, use Levenshtein distance
   const distance = levenshteinDistance(normalized1, normalized2);
   const maxLength = Math.max(normalized1.length, normalized2.length);
   const similarity = 1 - (distance / maxLength);
 
-  // Usar el mismo umbral que en el cliente
   return similarity >= 0.65;
 }
 
-app.post('/process-text', cors(corsOptions), (req, res) => {
+// ✅ 6. Health Check Route
+app.get('/health', (req, res) => {
+  console.log(`✅ Health check OK`);
+  res.json({ status: 'ok' });
+});
+
+// ✅ 7. Process Text Route
+app.post('/process-text', (req, res) => {
   try {
     const { text, wordsToHighlight } = req.body;
-    
+
     if (!text || !wordsToHighlight) {
-      return res.status(400).json({ 
-        error: 'Missing required parameters' 
-      });
+      return res.status(400).json({ error: 'Missing required parameters' });
     }
 
     const matches = [];
@@ -94,10 +99,10 @@ app.post('/process-text', cors(corsOptions), (req, res) => {
     words.forEach(word => {
       const normalizedWord = removeDiacritics(word.trim());
       if (normalizedWord) {
-        const match = wordsToHighlight.find(w => 
+        const match = wordsToHighlight.find(w =>
           calculateSimilarity(w.word, normalizedWord)
         );
-        
+
         if (match) {
           matches.push({
             original: word,
@@ -112,18 +117,10 @@ app.post('/process-text', cors(corsOptions), (req, res) => {
 
     res.json({ matches });
   } catch (error) {
-    console.error('Processing error:', error);
-    res.status(500).json({ 
-      error: 'Internal server error',
-      details: error.message 
-    });
+    console.error('❌ Processing error:', error);
+    res.status(500).json({ error: 'Internal server error', details: error.message });
   }
 });
 
-app.get('/health', cors(corsOptions), (req, res) => {
-  res.json({ status: 'ok' });
-});
-
-app.listen(3000, '0.0.0.0', () => {
-  console.log('Server running on port 3000');
-});
+// ✅ 8. Export the App (NO app.listen() HERE!)
+module.exports = app;
