@@ -92,6 +92,37 @@ app.post('/process-text', (req, res) => {
       return res.status(400).json({ error: 'Missing required parameters' });
     }
 
+    function processTextLocally(text, wordsToHighlight) {
+  const matches = [];
+  const words = text.split(/\b/);
+  let position = 0;
+
+  words.forEach((word) => {
+    const normalizedWord = removeDiacritics(word.trim());
+    if (normalizedWord) {
+      const match = wordsToHighlight.find((w) => {
+        const targetWord = typeof w === 'string' ? w : w.word;
+        const normalizedTarget = removeDiacritics(targetWord);
+        return normalizedWord === normalizedTarget || 
+               calculateSimilarity(normalizedWord, normalizedTarget);
+      });
+
+      if (match) {
+        matches.push({
+          original: word,
+          matched: typeof match === 'string' ? match : match.word,
+          position,
+          isManual: match.isManual || false,
+        });
+      }
+    }
+    position += word.length;
+  });
+
+  return matches;
+}
+
+
     const allMatches = textChunks.map((text) => {
       // Process each chunk
       return processTextLocally(text, wordsToHighlight); // Use existing processing logic
