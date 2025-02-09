@@ -86,40 +86,24 @@ app.get('/health', (req, res) => {
 // ✅ 7. Process Text Route
 app.post('/process-text', (req, res) => {
   try {
-    const { text, wordsToHighlight } = req.body;
+    const { textChunks, wordsToHighlight } = req.body;
 
-    if (!text || !wordsToHighlight) {
+    if (!textChunks || !wordsToHighlight) {
       return res.status(400).json({ error: 'Missing required parameters' });
     }
 
-    const matches = [];
-    const words = text.split(/\b/);
-    let position = 0;
-
-    words.forEach(word => {
-      const normalizedWord = removeDiacritics(word.trim());
-      if (normalizedWord) {
-        const match = wordsToHighlight.find(w =>
-          calculateSimilarity(w.word, normalizedWord)
-        );
-
-        if (match) {
-          matches.push({
-            original: word,
-            matched: match.word,
-            position,
-            isManual: match.isManual
-          });
-        }
-      }
-      position += word.length;
+    const allMatches = textChunks.map((text) => {
+      // Process each chunk
+      return processTextLocally(text, wordsToHighlight); // Use existing processing logic
     });
 
-    res.json({ matches });
+    res.json({ matches: allMatches.flat() });
   } catch (error) {
-    console.error('❌ Processing error:', error);
-    res.status(500).json({ error: 'Internal server error', details: error.message });
+    console.error('Error processing text:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
+});
+
 });
 
 // ✅ 8. Export the App (NO app.listen() HERE!)
