@@ -104,7 +104,6 @@ app.post('/process-text', (req, res) => {
   }
 });
 
-});
 
 // ✅ 8. Export the App (NO app.listen() HERE!)
 module.exports = app;
