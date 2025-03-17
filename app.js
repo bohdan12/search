@@ -2,10 +2,6 @@ const express = require('express');
 const cors = require('cors');
 
 const app = express();
-const PORT = 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
 
 // ✅ 1. Correct CORS Configuration
 const corsOptions = {
@@ -66,30 +62,6 @@ function levenshteinDistance(a, b) {
   return matrix[b.length][a.length];
 }
 
-/**
- * Calcula la similitud entre dos textos y devuelve un valor entre 0 y 1
- * @private
- */
-function getSimilarityScore(text1, text2) {
-  const normalized1 = removeDiacritics(text1.toLowerCase());
-  const normalized2 = removeDiacritics(text2.toLowerCase());
-
-  // First, check for an exact match
-  if (normalized1 === normalized2) return 1.0;
-
-  // If no exact match, use Levenshtein distance
-  const distance = levenshteinDistance(normalized1, normalized2);
-  const maxLength = Math.max(normalized1.length, normalized2.length);
-  
-  // Evitar división por cero
-  if (maxLength === 0) return 1.0;
-  
-  return 1 - (distance / maxLength);
-}
-
-/**
- * Función original modificada para comparar con todas las palabras y devolver la mejor
- */
 function calculateSimilarity(text1, text2) {
   const normalized1 = removeDiacritics(text1.toLowerCase());
   const normalized2 = removeDiacritics(text2.toLowerCase());
@@ -103,29 +75,6 @@ function calculateSimilarity(text1, text2) {
   const similarity = 1 - (distance / maxLength);
 
   return similarity >= 0.65;
-}
-
-/**
- * Encuentra la mejor coincidencia de palabras clave para una palabra dada
- * @private
- */
-function findBestKeywordMatch(word, keywords) {
-  let bestMatch = null;
-  let highestScore = 0;
-  
-  // Para cada palabra clave, calculamos la similitud
-  for (const keyword of keywords) {
-    const keywordText = typeof keyword === 'string' ? keyword : keyword.word;
-    const score = getSimilarityScore(word, keywordText);
-    
-    // Guardamos la palabra con mayor similitud que supere el umbral
-    if (score >= 0.65 && score > highestScore) {
-      highestScore = score;
-      bestMatch = keyword;
-    }
-  }
-  
-  return bestMatch;
 }
 
 // ✅ 6. Health Check Route
@@ -144,35 +93,39 @@ app.post('/process-text', (req, res) => {
     }
 
     function processTextLocally(text, wordsToHighlight) {
-      const matches = [];
-      const words = text.split(/\b/);
-      let position = 0;
+  const matches = [];
+  const words = text.split(/\b/);
+  let position = 0;
 
-      words.forEach((word) => {
-        const normalizedWord = removeDiacritics(word.trim());
-        if (normalizedWord) {
-          // En vez de buscar con find, ahora buscamos la mejor coincidencia
-          // comparando con todas las palabras clave
-          const match = findBestKeywordMatch(normalizedWord, wordsToHighlight);
-
-          if (match) {
-            matches.push({
-              original: word,
-              matched: typeof match === 'string' ? match : match.word,
-              position,
-              isManual: match.isManual || false,
-            });
-          }
-        }
-        position += word.length;
+  words.forEach((word) => {
+    const normalizedWord = removeDiacritics(word.trim());
+    if (normalizedWord) {
+      const match = wordsToHighlight.find((w) => {
+        const targetWord = typeof w === 'string' ? w : w.word;
+        const normalizedTarget = removeDiacritics(targetWord);
+        return normalizedWord === normalizedTarget || 
+               calculateSimilarity(normalizedWord, normalizedTarget);
       });
 
-      return matches;
+      if (match) {
+        matches.push({
+          original: word,
+          matched: typeof match === 'string' ? match : match.word,
+          position,
+          isManual: match.isManual || false,
+        });
+      }
     }
+    position += word.length;
+  });
+
+  return matches;
+}
+
 
     const allMatches = textChunks.map((text) => {
       // Process each chunk
-      return processTextLocally(text, wordsToHighlight); // Use enhanced processing logic
+      return processTextLocally(text, wordsToHighlight); // Use existing processing logic
     });
 
     res.json({ matches: allMatches.flat() });
@@ -181,6 +134,7 @@ app.post('/process-text', (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
 
 // ✅ 8. Export the App (NO app.listen() HERE!)
 module.exports = app;
