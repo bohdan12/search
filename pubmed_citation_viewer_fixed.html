@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PubMed Citation Viewer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            background-color: #005a9c;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .file-input-container {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .slides-container {
+            background-color: white;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+            min-height: 500px;
+        }
+        .slide {
+            display: none;
+            padding: 10px;
+            border: 1px solid #ddd;
+            background-color: #f9f9f9;
+        }
+        .slide.active {
+            display: block;
+        }
+        div.notes-display:empty {
+            background-color: rgb(255, 174, 0);
+        }
+        .citation-content {
+            font-family: system-ui;
+            line-height: 1.5;
+            overflow-y: auto;
+            max-height: 400px;
+            margin-bottom: 20px;
+        }
+        .bold-text {
+            font-weight: bold;
+        }
+        .notes-container {
+            margin-top: 20px;
+            width: 100%;
+        }
+        .notes-controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+        .highlight-control {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .classification-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .classification-select {
+            padding: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .add-classification-btn {
+            padding: 5px 10px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .add-classification-btn:hover {
+            background-color: #218838;
+        }
+        .notes-input {
+            width: 100%;
+            padding: 10px;
+            font-family: Arial, sans-serif;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            resize: vertical;
+            min-height: 60px;
+        }
+        .notes-display {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #ffffff;
+            border: 1px solid #000;
+            font-family: Arial, sans-serif;
+            text-decoration: underline;
+            box-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+            width: 400px;
+        }
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            margin: 20px 0;
+        }
+        .navigation-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        .btn {
+            padding: 10px 15px;
+            background-color: #005a9c;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .btn:hover {
+            background-color: #004275;
+        }
+        .btn:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .status {
+            margin-top: 10px;
+            font-style: italic;
+            color: #666;
+        }
+        .progress {
+            text-align: center;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+        .copy-single-btn {
+            margin-top: 10px;
+            display: block;
+            width: 100%;
+        }
+        #formatted-content-container {
+            position: absolute;
+            left: -9999px;
+            top: 0;
+        }
+        pre {
+            white-space: pre-wrap;
+            margin: 0;
+            font-family: Consolas, Monaco, 'Courier New', monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>PubMed Citation Viewer</h1>
+    </div>
+
+    <div class="container">
+        <div class="file-input-container">
+            <input type="file" id="fileInput" accept=".txt">
+            <p class="status">Load a PubMed citation file (.txt) to begin</p>
+        </div>
+
+        <div class="progress">
+            <span id="currentSlide">0</span>/<span id="totalSlides">0</span>
+        </div>
+
+        <div class="controls">
+            <div class="navigation-buttons">
+                <button id="prevBtn" class="btn" disabled>Previous</button>
+                <button id="nextBtn" class="btn" disabled>Next</button>
+            </div>
+            <button id="copyAllBtn" class="btn" disabled>Copy All for Word</button>
+        </div>
+
+        <div class="slides-container" id="slidesContainer">
+            <div id="noEntriesMessage">No entries loaded yet. Please select a file.</div>
+        </div>
+
+        <button id="copySingleBtn" class="btn copy-single-btn" disabled>Copy Current Entry for Word</button>
+    </div>
+
+    <!-- Hidden container for formatted content -->
+    <div id="formatted-content-container"></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const fileInput = document.getElementById('fileInput');
+            const slidesContainer = document.getElementById('slidesContainer');
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            const copyAllBtn = document.getElementById('copyAllBtn');
+            const copySingleBtn = document.getElementById('copySingleBtn');
+            const currentSlideEl = document.getElementById('currentSlide');
+            const totalSlidesEl = document.getElementById('totalSlides');
+            const noEntriesMessage = document.getElementById('noEntriesMessage');
+            const formattedContentContainer = document.getElementById('formatted-content-container');
+
+            let entries = [];
+            let currentSlideIndex = 0;
+
+            // Classification options from the spreadsheet
+            const classificationOptions = [
+                "Safety publication. ",
+                "No AERs or relevant safety publication were identified. ",
+                "No AERs or relevant safety publication were identified. Reference related to humans. ",
+                "Reference related to humans. ",
+                "(not target specie)",
+                "(target specie)",
+                "(not marketed)",
+                "(marketed)",
+                "Non-valid AER. ",
+                "Valid AER. ",
+                "AER excluded due to ",
+                "Special situation without associated AER. ",
+                "The use of Vetpharma's products is discarded because the study was conducted in a country where these products are not commercially available"
+            ];
+
+            fileInput.addEventListener('change', handleFileSelect);
+            prevBtn.addEventListener('click', showPreviousSlide);
+            nextBtn.addEventListener('click', showNextSlide);
+            copyAllBtn.addEventListener('click', copyAllToClipboard);
+            copySingleBtn.addEventListener('click', copySingleToClipboard);
+
+            function handleFileSelect(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    console.log('Raw text sample:', JSON.stringify(e.target.result.substring(0, 200)));
+
+                    parseEntries(e.target.result);
+                };
+                reader.readAsText(file);
+            }
+
+            function parseEntries(text) {
+                // Reset everything
+                entries = [];
+                currentSlideIndex = 0;
+                slidesContainer.innerHTML = '';
+
+                // Fix trailing spaces followed by line breaks - join lines that end with space
+                text = text.replace(/^(.+) +\r\n(?=.)/gm, '$1 ');
+                text = text.replace(/^PMID\: (\d+)/gm, '<a target="_blank" href="https://pubmed.ncbi.nlm.nih.gov/$1/">PMID: $1</a>');
+
+                // Find entries that start with a number followed by a period and space
+                let currentEntryText = '';
+                let entryNumber = 1;
+                // Split the text by lines
+                const lines = text.split('\n');
+
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i].trim();
+
+                    // Check if this line starts a new entry (number followed by period and space)
+                    const newEntryMatch = line.match(/^(\d+)\.\s(.+)/);
+
+                    if (newEntryMatch) {
+                        // If we already have text for a previous entry, save it
+                        if (currentEntryText) {
+                            entries.push(currentEntryText.trim());
+                        }
+
+                        // Start a new entry with this line
+                        currentEntryText = line + '\n';
+                        entryNumber = parseInt(newEntryMatch[1]);
+                    } else {
+                        // This is a continuation of the current entry
+                        if (currentEntryText) {
+                            currentEntryText += line + '\n';
+                        } else if (line) {
+                            // If we don't have an entry yet but have text, start one
+                            currentEntryText = line + '\n';
+                        }
+                    }
+                }
+
+                // Add the last entry if there is one
+                if (currentEntryText) {
+                    entries.push(currentEntryText.trim());
+                }
+
+                // Update UI
+                totalSlidesEl.textContent = entries.length;
+                createSlides();
+
+                if (entries.length > 0) {
+                    noEntriesMessage.style.display = 'none';
+                    showSlide(0);
+
+                    // Enable buttons
+                    nextBtn.disabled = entries.length <= 1;
+                    copyAllBtn.disabled = false;
+                    copySingleBtn.disabled = false;
+                } else {
+                    noEntriesMessage.style.display = 'block';
+                    currentSlideEl.textContent = '0';
+
+                    // Disable buttons
+                    prevBtn.disabled = true;
+                    nextBtn.disabled = true;
+                    copyAllBtn.disabled = true;
+                    copySingleBtn.disabled = true;
+                }
+            }
+
+            function createSlides() {
+                slidesContainer.innerHTML = '';
+
+                entries.forEach((entry, index) => {
+                    // Create slide div
+                    const slide = document.createElement('div');
+                    slide.className = 'slide';
+                    slide.id = `slide-${index}`;
+
+                    // Process and format the entry
+                    const processedEntry = processEntry(entry, index + 1);
+
+                    // Create content div for the formatted citation text
+                    const contentDiv = document.createElement('div');
+                    contentDiv.className = 'citation-content';
+                    contentDiv.innerHTML = processedEntry.formattedHtml;
+
+                    // Create notes container
+                    const notesContainer = document.createElement('div');
+                    notesContainer.className = 'notes-container';
+
+                    // Create controls for highlighting and classification
+                    const controlsDiv = document.createElement('div');
+                    controlsDiv.className = 'notes-controls';
+
+                    // Highlight checkbox
+                    const highlightDiv = document.createElement('div');
+                    highlightDiv.className = 'highlight-control';
+
+                    const highlightCheckbox = document.createElement('input');
+                    highlightCheckbox.type = 'checkbox';
+                    highlightCheckbox.id = `highlight-${index}`;
+                    highlightCheckbox.addEventListener('change', function() {
+                        updateNotesDisplay(index);
+                    });
+
+                    const highlightLabel = document.createElement('label');
+                    highlightLabel.htmlFor = `highlight-${index}`;
+                    highlightLabel.textContent = 'Highlight';
+
+                    highlightDiv.appendChild(highlightCheckbox);
+                    highlightDiv.appendChild(highlightLabel);
+
+                    // Classification dropdown
+                    const classificationDiv = document.createElement('div');
+                    classificationDiv.className = 'classification-control';
+
+                    const classificationLabel = document.createElement('label');
+                    classificationLabel.textContent = 'Classification:';
+
+                    const classificationSelect = document.createElement('select');
+                    classificationSelect.className = 'classification-select';
+                    classificationSelect.id = `classification-${index}`;
+
+                    // Add default option
+                    const defaultOption = document.createElement('option');
+                    defaultOption.value = '';
+                    defaultOption.textContent = 'Select classification...';
+                    classificationSelect.appendChild(defaultOption);
+
+                    // Add classification options
+                    classificationOptions.forEach(option => {
+                        const optionElement = document.createElement('option');
+                        optionElement.value = option;
+                        optionElement.textContent = option;
+                        classificationSelect.appendChild(optionElement);
+                    });
+
+                    // Add event listener to update notes display when a classification is selected
+                    classificationSelect.addEventListener('change', function() {
+                        addClassificationToNotes(index);
+                    });
+
+                    classificationDiv.appendChild(classificationLabel);
+                    classificationDiv.appendChild(classificationSelect);
+
+                    controlsDiv.appendChild(highlightDiv);
+                    controlsDiv.appendChild(classificationDiv);
+
+                    // Create textarea for notes
+                    const notesInput = document.createElement('textarea');
+                    notesInput.className = 'notes-input';
+                    notesInput.id = `notes-${index}`;
+                    notesInput.placeholder = 'Add notes here...';
+                    notesInput.value = '';
+
+                    // Add event listener to update notes display when input changes
+                    notesInput.addEventListener('input', function() {
+                        updateNotesDisplay(index);
+                    });
+
+                    // Create notes display area that shows formatted notes
+                    const notesDisplay = document.createElement('div');
+                    notesDisplay.className = 'notes-display';
+                    notesDisplay.id = `notes-display-${index}`;
+                    notesDisplay.textContent = notesInput.value;
+
+                    // Append elements
+                    notesContainer.appendChild(controlsDiv);
+                    notesContainer.appendChild(notesInput);
+                    notesContainer.appendChild(notesDisplay);
+                    slide.appendChild(contentDiv);
+                    slide.appendChild(notesContainer);
+                    slidesContainer.appendChild(slide);
+                });
+            }
+
+            function addClassificationToNotes(index) {
+                const classificationSelect = document.getElementById(`classification-${index}`);
+                const notesInput = document.getElementById(`notes-${index}`);
+
+                if (classificationSelect.value && notesInput) {
+                    const currentNotes = notesInput.value;
+                    const selectedClassification = classificationSelect.value;
+
+                    // Add the classification to the existing notes in the same line
+                    let newNotes;
+                    if (currentNotes.trim() === '') {
+                        newNotes = selectedClassification;
+                    } else {
+                        newNotes = currentNotes + ' ' + selectedClassification;
+                    }
+
+                    notesInput.value = newNotes;
+                    updateNotesDisplay(index);
+
+                    // Reset the dropdown
+                    classificationSelect.selectedIndex = 0;
+                }
+            }
+
+            function processEntry(entry, entryNumber) {
+                // Split the entry into lines
+                let lines = entry.split('\n');
+                let formattedHtml = '';
+                let plainText = [];
+
+                // Track non-empty lines and identify key sections
+                let nonEmptyLines = 0;
+                let authorSectionStart = -1;
+                let authorSectionEnd = -1;
+                let authorInfoLineIndex = -1;
+
+                // First pass: identify important sections
+                for (let i = 0; i < lines.length; i++) {
+                    if (lines[i].trim() !== '') {
+                        if (nonEmptyLines < 3) {
+                            // This is one of the first three non-empty lines (title, journal, date)
+                            nonEmptyLines++;
+                            if (nonEmptyLines === 3) {
+                                // The next non-empty line should start the author section
+                                authorSectionStart = i + 1;
+                            }
+                        }
+
+                        // Look for author information line
+                        if (lines[i].includes('Author information:')) {
+                            authorInfoLineIndex = i;
+                            authorSectionEnd = i - 1;
+                        }
+                    }
+                }
+
+                // If we didn't find an author info line, estimate the end of author section
+                if (authorSectionEnd === -1 && authorSectionStart !== -1) {
+                    // Look for the next empty line after author section started
+                    for (let i = authorSectionStart; i < lines.length; i++) {
+                        if (lines[i].trim() === '') {
+                            authorSectionEnd = i - 1;
+                            break;
+                        }
+                    }
+                }
+
+                // Reset counter for second pass
+                nonEmptyLines = 0;
+
+                // Second pass: generate formatted output
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i].trim();
+
+                    // Skip empty lines except one between authors and their affiliations
+                    if (line === '') {
+                        // Keep only the empty line right after the author section
+                        if (i === authorSectionEnd + 1 && authorInfoLineIndex > i) {
+                            formattedHtml += '<br>';
+                            plainText.push('');
+                        }
+                        continue;
+                    }
+
+                    // Handle first line with entry number
+                    if (i === 0) {
+                        // Extract entry number and replace with the correct sequential number
+                        const entryNumberMatch = lines[i].match(/^(\d+\.)\s(.*)/);
+                        if (entryNumberMatch) {
+                            // Use the sequential number passed to the function
+                            formattedHtml += `${entryNumber}. <span class="bold-text">${entryNumberMatch[2]}</span><br>`;
+                            plainText.push(`${entryNumber}. ${entryNumberMatch[2]}`);
+                            nonEmptyLines++;
+                            continue;
+                        }
+                    }
+
+                    // First three non-empty lines should be bold
+                    if (nonEmptyLines < 2) {
+                        formattedHtml += `<span class="bold-text">${line}</span><br>`;
+                        plainText.push(line);
+                        nonEmptyLines++;
+                    } else {
+                        formattedHtml += `${line}<br>`;
+                        plainText.push(line);
+                    }
+                }
+
+                return {
+                    formattedHtml: formattedHtml,
+                    plainText: plainText.join('\n')
+                };
+            }
+
+            function updateNotesDisplay(index) {
+                const notesInput = document.getElementById(`notes-${index}`);
+                const notesDisplay = document.getElementById(`notes-display-${index}`);
+                const highlightCheckbox = document.getElementById(`highlight-${index}`);
+
+                if (notesInput && notesDisplay) {
+                    notesDisplay.textContent = notesInput.value;
+                    notesDisplay.style.textDecoration = "underline";
+
+                    // Check if the highlight checkbox is checked
+                    if (highlightCheckbox && highlightCheckbox.checked) {
+                        // Highlighted - yellow background
+                        notesDisplay.style.backgroundColor = "#ffffcc";
+                    } else {
+                        // Not highlighted - white background
+                        notesDisplay.style.backgroundColor = "#ffffff";
+                    }
+                }
+            }
+
+            function showSlide(index) {
+                // Hide all slides
+                const allSlides = document.querySelectorAll('.slide');
+                allSlides.forEach(slide => slide.classList.remove('active'));
+
+                // Show the current slide
+                const currentSlide = document.getElementById(`slide-${index}`);
+                if (currentSlide) {
+                    currentSlide.classList.add('active');
+                    currentSlideIndex = index;
+                    currentSlideEl.textContent = index + 1;
+
+                    // Update buttons
+                    prevBtn.disabled = index === 0;
+                    nextBtn.disabled = index === entries.length - 1;
+                    copySingleBtn.disabled = false;
+                }
+            }
+
+            function showPreviousSlide() {
+                if (currentSlideIndex > 0) {
+                    showSlide(currentSlideIndex - 1);
+                }
+            }
+
+            function showNextSlide() {
+                if (currentSlideIndex < entries.length - 1) {
+                    showSlide(currentSlideIndex + 1);
+                }
+            }
+
+            function prepareSingleEntryForCopy(index) {
+                const entry = entries[index];
+                const notesInput = document.getElementById(`notes-${index}`);
+                const notes = notesInput ? notesInput.value : 'No AERs or relevant safety publication were identified. ';
+                const highlightCheckbox = document.getElementById(`highlight-${index}`);
+
+                // Determine background color based on checkbox
+                const backgroundColor = (highlightCheckbox && highlightCheckbox.checked) ? "#ffffcc" : "#ffffff";
+
+                // Process the entry
+                const processed = processEntry(entry, index + 1);
+
+                // Create HTML with proper line breaks for Word
+                let contentLines = processed.plainText.split('\n');
+                let htmlContent = '';
+
+                // Apply bold to first three non-empty lines
+                let nonEmptyLines = 0;
+                for (let i = 0; i < contentLines.length; i++) {
+                    const line = contentLines[i];
+
+                    // Handle empty lines - preserve them with proper HTML line breaks
+                    if (line.trim() === '') {
+                        htmlContent += '<br>';
+                        continue;
+                    }
+
+                    // Apply bold to first three non-empty lines
+                    if (nonEmptyLines < 3) {
+                        htmlContent += '<b>' + line + '</b><br>';
+                        nonEmptyLines++;
+                    } else {
+                        htmlContent += line + '<br>';
+                    }
+                }
+
+                // Add two lines of space before the notes box
+                htmlContent += '<br><br>';
+
+                // Add notes with appropriate highlighting, border, and box-like appearance
+                // Using a fixed width in pixels rather than percentage
+                htmlContent += '<table style="width: 400px; border-collapse: collapse; margin-top: 10px;">' +
+                               '<tr><td style="background-color: ' + backgroundColor + '; border: 1px solid black; padding: 8px; text-decoration: underline; word-wrap: break-word;">' +
+                               notes +
+                               '</td></tr></table>';
+
+                return htmlContent;
+            }
+
+            function prepareAllEntriesForCopy() {
+                let result = '';
+
+                for (let i = 0; i < entries.length; i++) {
+                    result += prepareSingleEntryForCopy(i);
+
+                    // Add page break except for the last entry
+                    if (i < entries.length - 1) {
+                        result += '<br style="page-break-before: always; clear: both;">';
+                    }
+                }
+
+                return result;
+            }
+
+            function copyToClipboard(html) {
+                // Create a hidden div to hold the HTML content
+                const container = document.createElement('div');
+                container.innerHTML = html;
+                container.style.position = 'fixed';
+                container.style.pointerEvents = 'none';
+                container.style.opacity = '0';
+                document.body.appendChild(container);
+
+                // Select the content
+                window.getSelection().removeAllRanges();
+                const range = document.createRange();
+                range.selectNode(container);
+                window.getSelection().addRange(range);
+
+                try {
+                    // Execute copy command
+                    const successful = document.execCommand('copy');
+                    if (successful) {
+                        alert('Text copied to clipboard successfully!');
+                    } else {
+                        alert('Unable to copy. Please try selecting and copying manually.');
+                    }
+                } catch (err) {
+                    console.error('Unable to copy text: ', err);
+                    alert('Failed to copy: ' + err);
+                } finally {
+                    // Clean up
+                    window.getSelection().removeAllRanges();
+                    document.body.removeChild(container);
+                }
+            }
+
+            function copyAllToClipboard() {
+                const text = prepareAllEntriesForCopy();
+                copyToClipboard(text);
+            }
+
+            function copySingleToClipboard() {
+                const text = prepareSingleEntryForCopy(currentSlideIndex);
+                copyToClipboard(text);
+            }
+        });
+    </script>
+</body>
+</html>
